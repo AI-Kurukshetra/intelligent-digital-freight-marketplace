@@ -54,54 +54,70 @@ export async function getLoadById(loadId: string) {
 
 export async function getShipperDashboard(shipperId: string) {
   const supabase = await createClient();
-  const { data: loads } = await supabase
+  const { data: loads, error: loadsError } = await supabase
     .from("loads")
     .select("*")
     .eq("shipper_id", shipperId)
     .order("created_at", { ascending: false });
 
+  if (loadsError) {
+    console.error("Failed to fetch shipper dashboard loads", loadsError);
+  }
+
   const loadIds = (loads ?? []).map((load) => load.id);
-  const bids =
+  const bidsResult =
     loadIds.length === 0
-      ? []
+      ? { data: [] as BidRow[], error: null }
       : (
           await supabase
             .from("bids")
             .select("*")
             .in("load_id", loadIds)
             .order("created_at", { ascending: false })
-        ).data ?? [];
+        );
+
+  if (bidsResult.error) {
+    console.error("Failed to fetch shipper dashboard bids", bidsResult.error);
+  }
 
   return {
     loads: loads ?? [],
-    bids: await attachCarrierEmails(bids),
+    bids: await attachCarrierEmails(bidsResult.data ?? []),
     totalEstimatedValue: (loads ?? []).reduce((sum, load) => sum + load.price_estimate, 0)
   };
 }
 
 export async function getCarrierDashboard(carrierId: string) {
   const supabase = await createClient();
-  const { data: bids } = await supabase
+  const { data: bids, error: bidsError } = await supabase
     .from("bids")
     .select("*")
     .eq("carrier_id", carrierId)
     .order("created_at", { ascending: false });
 
+  if (bidsError) {
+    console.error("Failed to fetch carrier dashboard bids", bidsError);
+  }
+
   const loadIds = (bids ?? []).map((bid) => bid.load_id);
-  const loads =
+  const loadsResult =
     loadIds.length === 0
-      ? []
+      ? { data: [] as LoadRow[], error: null }
       : (
           await supabase
             .from("loads")
             .select("*")
             .in("id", loadIds)
             .order("pickup_date", { ascending: true })
-        ).data ?? [];
+        );
+
+  if (loadsResult.error) {
+    console.error("Failed to fetch carrier dashboard loads", loadsResult.error);
+  }
 
   return {
     bids: bids ?? [],
-    loads
+    loads: loadsResult.data ?? []
   };
 }
 

@@ -37,6 +37,13 @@ export function LoadFiltersForm({ cargo = "", delivery = "", pickup = "" }: Load
     router.replace(query ? `${pathname}?${query}` : pathname);
   }
 
+  function handleClear() {
+    setPickupValue("");
+    setDeliveryValue("");
+    setCargoValue("");
+    router.replace(pathname);
+  }
+
   return (
     <form className="mt-8 grid gap-4 rounded-[24px] bg-mist p-5 md:grid-cols-4" onSubmit={handleSubmit}>
       <input
@@ -63,9 +70,18 @@ export function LoadFiltersForm({ cargo = "", delivery = "", pickup = "" }: Load
         placeholder="Cargo type"
         className="rounded-2xl border border-slate/15 bg-white px-4 py-3 text-sm text-ink outline-none ring-accent/30 focus:ring"
       />
-      <button type="submit" className="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white">
-        Apply filters
-      </button>
+      <div className="flex gap-3 md:col-span-4 md:justify-end">
+        <button
+          type="button"
+          onClick={handleClear}
+          className="rounded-2xl border border-slate/20 bg-white px-4 py-3 text-sm font-semibold text-ink"
+        >
+          Clear filters
+        </button>
+        <button type="submit" className="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white">
+          Apply filters
+        </button>
+      </div>
     </form>
   );
 }

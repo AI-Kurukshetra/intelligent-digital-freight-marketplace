@@ -11,7 +11,14 @@ const nextConfig = {
       bodySizeLimit: "2mb"
     }
   },
-  outputFileTracingRoot: __dirname
+  outputFileTracingRoot: __dirname,
+  webpack(config, { dev }) {
+    if (dev) {
+      config.cache = false;
+    }
+
+    return config;
+  }
 };
 
 export default nextConfig;

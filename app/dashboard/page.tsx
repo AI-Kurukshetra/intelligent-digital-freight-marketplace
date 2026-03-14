@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -8,6 +9,8 @@ import { requireViewer } from "@/lib/auth";
 import { getCarrierDashboard, getShipperDashboard, mapBidsToLoads } from "@/lib/data";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 type DashboardPageProps = {
   searchParams?: Promise<{
     error?: string;
@@ -16,6 +19,7 @@ type DashboardPageProps = {
 };
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  noStore();
   const viewer = await requireViewer();
   const resolvedSearchParams = await searchParams;
   const role = viewer.role ?? "carrier";

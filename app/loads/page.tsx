@@ -1,8 +1,12 @@
+import { unstable_noStore as noStore } from "next/cache";
+
 import { LoadCard } from "@/components/load-card";
 import { LoadFiltersForm } from "@/components/load-filters-form";
 import { RealtimeListener } from "@/components/realtime-listener";
 import { getViewer } from "@/lib/auth";
 import { getMarketplaceLoads } from "@/lib/data";
+
+export const dynamic = "force-dynamic";
 
 type LoadsPageProps = {
   searchParams?: Promise<{
@@ -13,8 +17,14 @@ type LoadsPageProps = {
 };
 
 export default async function LoadsPage({ searchParams }: LoadsPageProps) {
+  noStore();
   const viewer = await getViewer();
   const resolvedSearchParams = await searchParams;
+  const activeFilters = [
+    resolvedSearchParams?.pickup ? `Pickup: ${resolvedSearchParams.pickup}` : null,
+    resolvedSearchParams?.delivery ? `Delivery: ${resolvedSearchParams.delivery}` : null,
+    resolvedSearchParams?.cargo ? `Cargo: ${resolvedSearchParams.cargo}` : null
+  ].filter((value): value is string => Boolean(value));
   const loads = await getMarketplaceLoads({
     cargo: resolvedSearchParams?.cargo,
     delivery: resolvedSearchParams?.delivery,
@@ -52,7 +62,12 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
       <section className="mt-8 grid gap-5">
         {loads.length === 0 ? (
           <div className="rounded-[28px] border border-white/50 bg-white/85 p-8 text-sm text-slate shadow-soft">
-            No loads match the current filters.
+            <p>No loads match the current filters.</p>
+            {activeFilters.length > 0 ? (
+              <p className="mt-3 text-xs uppercase tracking-[0.2em] text-slate/80">{activeFilters.join(" | ")}</p>
+            ) : (
+              <p className="mt-3 text-sm text-slate/80">Try posting a load or clear the filters to see all available rows.</p>
+            )}
           </div>
         ) : (
           loads.map((load) => <LoadCard key={load.id} load={load} />)
