@@ -27,6 +27,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   if (role === "shipper") {
     const snapshot = await getShipperDashboard(viewer.authUserId);
+    const shipperBestBid = snapshot.loads.reduce<number>(
+      (best, load) => (load.lowestBid !== null && load.lowestBid < best ? load.lowestBid : best),
+      Number.POSITIVE_INFINITY
+    );
 
     return (
       <DashboardLayout
@@ -54,11 +58,30 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </p>
         ) : null}
 
+      <section className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Posted loads" value={String(snapshot.loads.length)} />
+        <StatCard label="Incoming bids" value={String(snapshot.bids.length)} tone="accent" />
+        <StatCard label="Estimated freight value" value={formatCurrency(snapshot.totalEstimatedValue)} tone="surge" />
+      </section>
+
+      {snapshot.loads.length > 0 ? (
         <section className="grid gap-4 md:grid-cols-3">
-          <StatCard label="Posted loads" value={String(snapshot.loads.length)} />
-          <StatCard label="Incoming bids" value={String(snapshot.bids.length)} tone="accent" />
-          <StatCard label="Estimated freight value" value={formatCurrency(snapshot.totalEstimatedValue)} tone="surge" />
+          <StatCard
+            label="Loads with bids"
+            value={String(snapshot.loads.filter((load) => load.bidCount > 0).length)}
+            tone="accent"
+          />
+          <StatCard
+            label="Best live offer"
+            value={formatCurrency(shipperBestBid === Number.POSITIVE_INFINITY ? 0 : shipperBestBid)}
+          />
+          <StatCard
+            label="Awaiting response"
+            value={String(snapshot.loads.filter((load) => load.bidCount === 0).length)}
+            tone="surge"
+          />
         </section>
+      ) : null}
 
         <section className="rounded-[28px] border border-white/50 bg-white/80 p-6 shadow-soft">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

@@ -29,7 +29,8 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
     cargo: resolvedSearchParams?.cargo,
     delivery: resolvedSearchParams?.delivery,
     pickup: resolvedSearchParams?.pickup
-  });
+  }, viewer);
+  const carrierLoads = viewer?.role === "carrier" ? loads : [];
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-12">
@@ -48,6 +49,27 @@ export default async function LoadsPage({ searchParams }: LoadsPageProps) {
           {viewer?.role === "shipper" ? (
             <div className="rounded-2xl bg-mist px-5 py-4 text-sm text-slate">
               Shippers can browse the board too, but only carriers can place bids.
+            </div>
+          ) : viewer?.role === "carrier" ? (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-mist px-5 py-4 text-sm text-slate">
+                <p className="text-xs uppercase tracking-[0.2em]">Open to bid</p>
+                <p className="mt-2 text-2xl font-semibold text-ink">
+                  {carrierLoads.filter((load) => "carrierBidState" in load && load.carrierBidState === "available").length}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-mist px-5 py-4 text-sm text-slate">
+                <p className="text-xs uppercase tracking-[0.2em]">Already bid</p>
+                <p className="mt-2 text-2xl font-semibold text-ink">
+                  {carrierLoads.filter((load) => "carrierBidState" in load && load.carrierBidState === "active").length}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-mist px-5 py-4 text-sm text-slate">
+                <p className="text-xs uppercase tracking-[0.2em]">Awarded</p>
+                <p className="mt-2 text-2xl font-semibold text-ink">
+                  {carrierLoads.filter((load) => "carrierBidState" in load && load.carrierBidState === "won").length}
+                </p>
+              </div>
             </div>
           ) : null}
         </div>

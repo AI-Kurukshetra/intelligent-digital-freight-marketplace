@@ -7,7 +7,23 @@ export type LoadFilters = {
   pickup?: string;
 };
 
-export async function getMarketplaceLoads(filters: LoadFilters = {}) {
+export type LoadWithBidSummary = LoadRow & {
+  bidCount: number;
+  lowestBid: number | null;
+  latestBidAt: string | null;
+};
+
+export type LoadWithCarrierContext = LoadWithBidSummary & {
+  carrierBidId: string | null;
+  carrierBidMessage: string | null;
+  carrierBidPrice: number | null;
+  carrierBidState: "available" | "active" | "won" | "closed" | "own_load";
+};
+
+export async function getMarketplaceLoads(
+  filters: LoadFilters = {},
+  viewer?: { authUserId: string; role: UserRole | null } | null
+) {
   const supabase = await createClient();
   let query = supabase.from("loads").select("*").order("created_at", { ascending: false });
 
@@ -29,7 +45,30 @@ export async function getMarketplaceLoads(filters: LoadFilters = {}) {
     console.error("Failed to fetch marketplace loads", error);
   }
 
-  return data ?? [];
+  const loads = data ?? [];
+  const loadIds = loads.map((load) => load.id);
+  const bidsResult =
+    loadIds.length === 0
+      ? { data: [] as BidRow[], error: null }
+      : (
+          await supabase
+            .from("bids")
+            .select("*")
+            .in("load_id", loadIds)
+            .order("created_at", { ascending: false })
+        );
+
+  if (bidsResult.error) {
+    console.error("Failed to fetch marketplace bid summaries", bidsResult.error);
+  }
+
+  const loadsWithBidSummaries = attachBidSummaries(loads, bidsResult.data ?? []);
+
+  if (!viewer || viewer.role !== "carrier") {
+    return loadsWithBidSummaries;
+  }
+
+  return attachCarrierContext(loadsWithBidSummaries, bidsResult.data ?? [], viewer.authUserId);
 }
 
 export async function getLoadById(loadId: string) {
@@ -89,7 +128,7 @@ export async function getShipperDashboard(shipperId: string) {
   }
 
   return {
-    loads: loads ?? [],
+    loads: attachBidSummaries(loads ?? [], bidsResult.data ?? []),
     bids: await attachCarrierEmails(bidsResult.data ?? []),
     totalEstimatedValue: (loads ?? []).reduce((sum, load) => sum + load.price_estimate, 0)
   };
@@ -129,7 +168,7 @@ export async function getCarrierDashboard(carrierId: string) {
 
   return {
     bids: bids ?? [],
-    loads: loadsResult.data ?? []
+    loads: attachBidSummaries(loadsResult.data ?? [], bids)
   };
 }
 
@@ -166,4 +205,65 @@ async function attachCarrierEmails(bids: BidRow[]): Promise<BidWithCarrier[]> {
     ...bid,
     carrierEmail: carrierMap.get(bid.carrier_id)?.email
   }));
+}
+
+function attachBidSummaries(loads: LoadRow[], bids: BidRow[]): LoadWithBidSummary[] {
+  const bidsByLoadId = new Map<string, BidRow[]>();
+
+  bids.forEach((bid) => {
+    const loadBids = bidsByLoadId.get(bid.load_id) ?? [];
+    loadBids.push(bid);
+    bidsByLoadId.set(bid.load_id, loadBids);
+  });
+
+  return loads.map((load) => {
+    const loadBids = bidsByLoadId.get(load.id) ?? [];
+    const lowestBid = loadBids.reduce<number | null>(
+      (best, bid) => (best === null || bid.bid_price < best ? bid.bid_price : best),
+      null
+    );
+    const latestBidAt = loadBids.reduce<string | null>(
+      (latest, bid) => (latest === null || bid.created_at > latest ? bid.created_at : latest),
+      null
+    );
+
+    return {
+      ...load,
+      bidCount: loadBids.length,
+      lowestBid,
+      latestBidAt
+    };
+  });
+}
+
+function attachCarrierContext(
+  loads: LoadWithBidSummary[],
+  bids: BidRow[],
+  carrierId: string
+): LoadWithCarrierContext[] {
+  const ownBidsByLoadId = new Map(
+    bids.filter((bid) => bid.carrier_id === carrierId).map((bid) => [bid.load_id, bid] as const)
+  );
+
+  return loads.map((load) => {
+    const ownBid = ownBidsByLoadId.get(load.id) ?? null;
+    const carrierBidState: LoadWithCarrierContext["carrierBidState"] =
+      load.shipper_id === carrierId
+        ? "own_load"
+        : load.status === "awarded"
+          ? load.awarded_bid_id === ownBid?.id
+            ? "won"
+            : "closed"
+          : ownBid
+            ? "active"
+            : "available";
+
+    return {
+      ...load,
+      carrierBidId: ownBid?.id ?? null,
+      carrierBidMessage: ownBid?.message ?? null,
+      carrierBidPrice: ownBid?.bid_price ?? null,
+      carrierBidState
+    };
+  });
 }
