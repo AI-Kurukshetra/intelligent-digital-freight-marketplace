@@ -40,15 +40,22 @@ export async function getLoadById(loadId: string) {
     return null;
   }
 
-  const { data: bids } = await supabase
+  const rpcBidsResult = await supabase.rpc("get_load_bids", { p_load_id: loadId });
+  const tableBidsResult = await supabase
     .from("bids")
     .select("*")
     .eq("load_id", loadId)
     .order("bid_price", { ascending: true });
+  const bidsResult =
+    (rpcBidsResult.data?.length ?? 0) >= (tableBidsResult.data?.length ?? 0) ? rpcBidsResult : tableBidsResult;
+
+  if (bidsResult.error) {
+    console.error("Failed to fetch load bids", bidsResult.error);
+  }
 
   return {
     load,
-    bids: await attachCarrierEmails(bids ?? [])
+    bids: await attachCarrierEmails(bidsResult.data ?? [])
   };
 }
 
@@ -65,16 +72,17 @@ export async function getShipperDashboard(shipperId: string) {
   }
 
   const loadIds = (loads ?? []).map((load) => load.id);
+  const rpcBidsResult =
+    loadIds.length > 0
+      ? await supabase.rpc("get_shipper_dashboard_bids", { p_shipper_id: shipperId })
+      : { data: [] as BidRow[], error: null };
+  const tableBidsResult =
+    loadIds.length > 0
+      ? await supabase.from("bids").select("*").in("load_id", loadIds).order("created_at", { ascending: false })
+      : { data: [] as BidRow[], error: null };
+
   const bidsResult =
-    loadIds.length === 0
-      ? { data: [] as BidRow[], error: null }
-      : (
-          await supabase
-            .from("bids")
-            .select("*")
-            .in("load_id", loadIds)
-            .order("created_at", { ascending: false })
-        );
+    (rpcBidsResult.data?.length ?? 0) >= (tableBidsResult.data?.length ?? 0) ? rpcBidsResult : tableBidsResult;
 
   if (bidsResult.error) {
     console.error("Failed to fetch shipper dashboard bids", bidsResult.error);
@@ -89,17 +97,21 @@ export async function getShipperDashboard(shipperId: string) {
 
 export async function getCarrierDashboard(carrierId: string) {
   const supabase = await createClient();
-  const { data: bids, error: bidsError } = await supabase
+  const rpcBidsResult = await supabase.rpc("get_carrier_dashboard_bids", { p_carrier_id: carrierId });
+  const tableBidsResult = await supabase
     .from("bids")
     .select("*")
     .eq("carrier_id", carrierId)
     .order("created_at", { ascending: false });
+  const bidsResult =
+    (rpcBidsResult.data?.length ?? 0) >= (tableBidsResult.data?.length ?? 0) ? rpcBidsResult : tableBidsResult;
 
-  if (bidsError) {
-    console.error("Failed to fetch carrier dashboard bids", bidsError);
+  if (bidsResult.error) {
+    console.error("Failed to fetch carrier dashboard bids", bidsResult.error);
   }
 
-  const loadIds = (bids ?? []).map((bid) => bid.load_id);
+  const bids: BidRow[] = bidsResult.data ?? [];
+  const loadIds = bids.map((bid) => bid.load_id);
   const loadsResult =
     loadIds.length === 0
       ? { data: [] as LoadRow[], error: null }

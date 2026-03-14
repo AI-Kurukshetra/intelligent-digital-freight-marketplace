@@ -6,7 +6,8 @@ import { LoadCard } from "@/components/load-card";
 import { RealtimeListener } from "@/components/realtime-listener";
 import { StatCard } from "@/components/stat-card";
 import { requireViewer } from "@/lib/auth";
-import { getCarrierDashboard, getShipperDashboard, mapBidsToLoads } from "@/lib/data";
+import { getCarrierDashboard, getShipperDashboard } from "@/lib/data";
+import type { BidRow } from "@/types/database";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +95,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 <div key={bid.id} className="rounded-[24px] bg-mist p-5">
                   <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-ink">{bid.carrierEmail ?? "Carrier"}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-ink">{bid.carrierEmail ?? "Carrier"}</p>
+                        {snapshot.loads.find((load) => load.awarded_bid_id === bid.id) ? (
+                          <span className="rounded-full bg-sea/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-sea">
+                            Awarded
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="mt-1 text-sm text-slate">{bid.message || "No note provided."}</p>
                     </div>
                     <div className="text-right">
@@ -112,7 +120,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   const snapshot = await getCarrierDashboard(viewer.authUserId);
-  const bidLoadPairs = mapBidsToLoads(snapshot.bids, snapshot.loads);
+  const carrierBids = snapshot.bids as BidRow[];
+  const loadMap = new Map(snapshot.loads.map((load) => [load.id, load]));
 
   return (
     <DashboardLayout
@@ -141,11 +150,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Submitted bids" value={String(snapshot.bids.length)} />
+        <StatCard label="Submitted bids" value={String(carrierBids.length)} />
         <StatCard label="Tracked loads" value={String(snapshot.loads.length)} tone="accent" />
         <StatCard
           label="Pipeline value"
-          value={formatCurrency(snapshot.bids.reduce((sum, bid) => sum + bid.bid_price, 0))}
+          value={formatCurrency(carrierBids.reduce((sum: number, bid: BidRow) => sum + bid.bid_price, 0))}
           tone="surge"
         />
       </section>
@@ -170,27 +179,62 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <p className="text-sm uppercase tracking-[0.25em] text-accent">Your bids</p>
         <h2 className="mt-2 text-2xl font-semibold text-ink">Active bid pipeline</h2>
         <div className="mt-6 space-y-4">
-          {bidLoadPairs.length === 0 ? (
+          {carrierBids.length === 0 ? (
             <div className="rounded-[24px] bg-mist p-6 text-sm text-slate">
               No bids submitted yet. Browse the load board to start competing on freight.
             </div>
           ) : (
-            bidLoadPairs.map(({ bid, load }) => (
-              <div key={bid.id} className="rounded-[24px] bg-mist p-5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="text-lg font-semibold text-ink">{load.title}</p>
-                    <p className="mt-1 text-sm text-slate">
-                      {load.pickup_location} to {load.delivery_location}
-                    </p>
+            carrierBids.map((bid) => {
+              const load = loadMap.get(bid.load_id);
+              const bidState =
+                load?.status === "awarded"
+                  ? load.awarded_bid_id === bid.id
+                    ? "won"
+                    : "lost"
+                  : "active";
+
+              return (
+                <div key={bid.id} className="rounded-[24px] border border-white/50 bg-white/85 p-5 shadow-soft">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-lg font-semibold text-ink">{load?.title ?? "Submitted bid"}</p>
+                      <p className="mt-1 text-sm text-slate">
+                        {load
+                          ? `${load.pickup_location} to ${load.delivery_location}`
+                          : `Load ID: ${bid.load_id}`}
+                      </p>
+                      {bid.message ? <p className="mt-2 text-sm text-slate">{bid.message}</p> : null}
+                    </div>
+                    <div className="rounded-2xl bg-mist px-4 py-3 text-right">
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate">Your bid</p>
+                      <p className="text-lg font-semibold text-ink">{formatCurrency(bid.bid_price)}</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate">{formatDate(bid.created_at)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-ink">{formatCurrency(bid.bid_price)}</p>
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate">{formatDate(bid.created_at)}</p>
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <span
+                      className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+                        bidState === "won"
+                          ? "bg-sea/10 text-sea"
+                          : bidState === "lost"
+                            ? "bg-surge/10 text-surge"
+                            : "bg-sea/10 text-sea"
+                      }`}
+                    >
+                      {bidState === "won" ? "Awarded" : bidState === "lost" ? "Closed" : "Active"}
+                    </span>
+                    {load ? (
+                      <Link className="text-sm font-semibold text-accent" href={`/loads/${load.id}`}>
+                        View load
+                      </Link>
+                    ) : (
+                      <span className="text-xs uppercase tracking-[0.2em] text-slate">Load details unavailable</span>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </section>

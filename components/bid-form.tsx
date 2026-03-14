@@ -3,9 +3,12 @@ import { SubmitButton } from "@/components/submit-button";
 
 type BidFormProps = {
   loadId: string;
+  initialBidPrice?: number;
+  initialMessage?: string | null;
+  submitLabel?: string;
 };
 
-export function BidForm({ loadId }: BidFormProps) {
+export function BidForm({ loadId, initialBidPrice, initialMessage, submitLabel = "Submit bid" }: BidFormProps) {
   return (
     <form action={createBidAction} className="space-y-4 rounded-[24px] border border-white/50 bg-white/85 p-6 shadow-soft">
       <input type="hidden" name="load_id" value={loadId} />
@@ -20,6 +23,7 @@ export function BidForm({ loadId }: BidFormProps) {
           min="1"
           step="100"
           required
+          defaultValue={initialBidPrice}
           placeholder="4200"
           className="mt-2 w-full rounded-2xl border border-slate/15 bg-mist px-4 py-3 text-sm text-ink outline-none ring-accent/30 transition focus:ring"
         />
@@ -33,13 +37,14 @@ export function BidForm({ loadId }: BidFormProps) {
           id="message"
           name="message"
           rows={4}
+          defaultValue={initialMessage ?? ""}
           placeholder="Fleet availability, pickup timing, equipment details..."
           className="mt-2 w-full rounded-2xl border border-slate/15 bg-mist px-4 py-3 text-sm text-ink outline-none ring-accent/30 transition focus:ring"
         />
       </div>
 
       <SubmitButton className="w-full bg-ink text-white hover:bg-slate" pendingLabel="Submitting bid...">
-        Submit bid
+        {submitLabel}
       </SubmitButton>
     </form>
   );

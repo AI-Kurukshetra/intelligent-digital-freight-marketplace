@@ -45,6 +45,23 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
     profile = (await supabase.from("users").select("*").eq("id", user.id).maybeSingle()).data;
   }
 
+  if (metadataRole && profile?.role !== metadataRole) {
+    const insertResult = await supabase.from("users").upsert(
+      {
+        email: user.email,
+        id: user.id,
+        role: metadataRole
+      },
+      { onConflict: "id" }
+    );
+
+    if (insertResult.error && insertResult.error.code !== "23505") {
+      console.error("Failed to reconcile user profile role", insertResult.error);
+    }
+
+    profile = (await supabase.from("users").select("*").eq("id", user.id).maybeSingle()).data;
+  }
+
   if (!profile) {
     const role = metadataRole ?? "carrier";
     const insertResult = await supabase.from("users").upsert(

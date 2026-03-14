@@ -129,15 +129,11 @@ export async function createBidAction(formData: FormData) {
     redirectWithError(`/loads/${loadId}`, "You cannot bid on your own load.");
   }
 
-  const { error } = await supabase.from("bids").upsert(
-    {
-      bid_price: bidPrice,
-      carrier_id: viewer.authUserId,
-      load_id: loadId,
-      message: message || null
-    },
-    { onConflict: "load_id,carrier_id" }
-  );
+  const { error } = await supabase.rpc("submit_bid", {
+    p_bid_price: bidPrice,
+    p_load_id: loadId,
+    p_message: message || null
+  });
 
   if (error) {
     redirectWithError(`/loads/${loadId}`, error.message);
@@ -146,4 +142,39 @@ export async function createBidAction(formData: FormData) {
   revalidatePath(`/loads/${loadId}`);
   revalidatePath("/dashboard");
   redirect(`/loads/${loadId}?message=Bid submitted successfully.`);
+}
+
+export async function awardBidAction(formData: FormData) {
+  const viewer = await requireRole("shipper");
+  const loadId = String(formData.get("load_id") ?? "");
+  const bidId = String(formData.get("bid_id") ?? "");
+
+  if (!loadId || !bidId) {
+    redirectWithError("/dashboard", "Select a valid bid to award.");
+  }
+
+  const supabase = await createClient();
+  const { data: load } = await supabase.from("loads").select("*").eq("id", loadId).maybeSingle();
+
+  if (!load) {
+    redirectWithError("/loads", "This load no longer exists.");
+  }
+
+  if (load.shipper_id !== viewer.authUserId) {
+    redirectWithError(`/loads/${loadId}`, "You cannot award a bid on someone else's load.");
+  }
+
+  const { error } = await supabase.rpc("award_bid", {
+    p_bid_id: bidId,
+    p_load_id: loadId
+  });
+
+  if (error) {
+    redirectWithError(`/loads/${loadId}`, error.message);
+  }
+
+  revalidatePath(`/loads/${loadId}`);
+  revalidatePath("/loads");
+  revalidatePath("/dashboard");
+  redirect(`/loads/${loadId}?message=Bid awarded successfully.`);
 }

@@ -9,7 +9,43 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      award_bid: {
+        Args: {
+          p_bid_id: string;
+          p_load_id: string;
+        };
+        Returns: Database["public"]["Tables"]["loads"]["Row"];
+      };
+      ensure_user_profile: {
+        Args: Record<PropertyKey, never>;
+        Returns: Database["public"]["Tables"]["users"]["Row"];
+      };
+      get_carrier_dashboard_bids: {
+        Args: {
+          p_carrier_id: string;
+        };
+        Returns: Database["public"]["Tables"]["bids"]["Row"][];
+      };
+      get_shipper_dashboard_bids: {
+        Args: {
+          p_shipper_id: string;
+        };
+        Returns: Database["public"]["Tables"]["bids"]["Row"][];
+      };
+      get_load_bids: {
+        Args: {
+          p_load_id: string;
+        };
+        Returns: Database["public"]["Tables"]["bids"]["Row"][];
+      };
+      submit_bid: {
+        Args: {
+          p_bid_price: number;
+          p_load_id: string;
+          p_message?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["bids"]["Row"];
+      };
     };
     Tables: {
       users: {
@@ -35,6 +71,7 @@ export type Database = {
       };
       loads: {
         Row: {
+          awarded_bid_id: string | null;
           cargo_type: string;
           created_at: string;
           delivery_location: string;
@@ -48,6 +85,7 @@ export type Database = {
           weight: number;
         };
         Insert: {
+          awarded_bid_id?: string | null;
           cargo_type: string;
           created_at?: string;
           delivery_location: string;
@@ -61,6 +99,7 @@ export type Database = {
           weight: number;
         };
         Update: {
+          awarded_bid_id?: string | null;
           cargo_type?: string;
           created_at?: string;
           delivery_location?: string;
